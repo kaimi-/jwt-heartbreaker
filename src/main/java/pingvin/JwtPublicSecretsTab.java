@@ -207,7 +207,7 @@ public class JwtPublicSecretsTab implements ITab {
         logPanel = new JPanel(new BorderLayout());
         
         // Create log table
-        String[] logColumns = {"ID", "Time", "URL", "JWT Token Field Name", "JWT Token Value", "Corresponding Secret"};
+        String[] logColumns = {"ID", "Time", "Host", "Path", "JWT Token Field Name", "JWT Token Value", "Corresponding Secret"};
         logTableModel = new DefaultTableModel(logColumns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -224,10 +224,11 @@ public class JwtPublicSecretsTab implements ITab {
         // Set column widths
         logTable.getColumnModel().getColumn(0).setPreferredWidth(50);  // ID
         logTable.getColumnModel().getColumn(1).setPreferredWidth(150); // Time
-        logTable.getColumnModel().getColumn(2).setPreferredWidth(200); // URL
-        logTable.getColumnModel().getColumn(3).setPreferredWidth(150); // JWT Token Field Name
-        logTable.getColumnModel().getColumn(4).setPreferredWidth(300); // JWT Token Value
-        logTable.getColumnModel().getColumn(5).setPreferredWidth(200); // Corresponding Secret
+        logTable.getColumnModel().getColumn(2).setPreferredWidth(150); // Host
+        logTable.getColumnModel().getColumn(3).setPreferredWidth(200); // Path
+        logTable.getColumnModel().getColumn(4).setPreferredWidth(150); // JWT Token Field Name
+        logTable.getColumnModel().getColumn(5).setPreferredWidth(300); // JWT Token Value
+        logTable.getColumnModel().getColumn(6).setPreferredWidth(200); // Corresponding Secret
         
         JScrollPane logScrollPane = new JScrollPane(logTable);
         logPanel.add(logScrollPane, BorderLayout.CENTER);
@@ -480,9 +481,34 @@ public class JwtPublicSecretsTab implements ITab {
      * Adds a new entry to the log table
      */
     public void addLogEntry(String url, String tokenFieldName, String tokenValue, String secret) {
+        // Parse URL to extract host and path
+        String host = "";
+        String path = url;
+        
+        try {
+            URL parsedUrl = new URL(url);
+            host = parsedUrl.getHost();
+            path = parsedUrl.getPath();
+            if (parsedUrl.getQuery() != null && !parsedUrl.getQuery().isEmpty()) {
+                path += "?" + parsedUrl.getQuery();
+            }
+        } catch (Exception e) {
+            // If URL parsing fails, use the original URL as path
+            callbacks.printError("Error parsing URL: " + e.getMessage());
+        }
+        
         // Check for duplicates before adding
-        if (isDuplicateLogEntry(url, tokenFieldName, tokenValue)) {
+        boolean isDuplicate = isDuplicateLogEntry(host, tokenFieldName, tokenValue);
+        
+        // Debug output to help identify issues
+        callbacks.printOutput("Adding log entry - Host: " + host + 
+                             ", Path: " + path + 
+                             ", Token Field: " + tokenFieldName + 
+                             ", Is Duplicate: " + isDuplicate);
+        
+        if (isDuplicate) {
             // Skip adding duplicate entry
+            callbacks.printOutput("Skipping duplicate log entry");
             return;
         }
         
@@ -492,7 +518,8 @@ public class JwtPublicSecretsTab implements ITab {
         logTableModel.addRow(new Object[]{
             logIdCounter++,
             timestamp,
-            url,
+            host,
+            path,
             tokenFieldName,
             tokenValue,
             secret
@@ -503,21 +530,38 @@ public class JwtPublicSecretsTab implements ITab {
     }
     
     /**
-     * Checks if a log entry with the same URL, token field name, and token value already exists
+     * Checks if a log entry with the same Host, token field name, and token value already exists
      */
-    private boolean isDuplicateLogEntry(String url, String tokenFieldName, String tokenValue) {
-        for (int i = 0; i < logTableModel.getRowCount(); i++) {
-            String existingUrl = (String) logTableModel.getValueAt(i, 2); // URL column
-            String existingTokenFieldName = (String) logTableModel.getValueAt(i, 3); // JWT Token Field Name column
-            String existingTokenValue = (String) logTableModel.getValueAt(i, 4); // JWT Token Value column
+    private boolean isDuplicateLogEntry(String host, String tokenFieldName, String tokenValue) {
+        // If any of the key fields are null, treat as non-duplicate
+        if (host == null || tokenFieldName == null || tokenValue == null) {
+            return false;
+        }
+        
+        int rowCount = logTableModel.getRowCount();
+        callbacks.printOutput("Checking for duplicates among " + rowCount + " existing log entries");
+        
+        for (int i = 0; i < rowCount; i++) {
+            String existingHost = (String) logTableModel.getValueAt(i, 2); // Host column
+            String existingTokenFieldName = (String) logTableModel.getValueAt(i, 4); // JWT Token Field Name column
+            String existingTokenValue = (String) logTableModel.getValueAt(i, 5); // JWT Token Value column
             
-            // Check if all three values match
-            if (Objects.equals(existingUrl, url) && 
-                Objects.equals(existingTokenFieldName, tokenFieldName) && 
-                Objects.equals(existingTokenValue, tokenValue)) {
+            // Debug output for comparison
+            if (i < 5) { // Limit debug output to first 5 rows to avoid flooding
+                callbacks.printOutput("Comparing with row " + i + 
+                                     " - Host: " + existingHost + 
+                                     ", Token Field: " + existingTokenFieldName);
+            }
+            
+            // Check if all three values match (case-insensitive for host and token field name)
+            if (host.equalsIgnoreCase(existingHost) && 
+                tokenFieldName.equalsIgnoreCase(existingTokenFieldName) && 
+                Objects.equals(tokenValue, existingTokenValue)) {
+                callbacks.printOutput("Found duplicate at row " + i);
                 return true;
             }
         }
+        
         return false;
     }
     
@@ -561,7 +605,14 @@ public class JwtPublicSecretsTab implements ITab {
                         StringBuilder sb = new StringBuilder();
                         for (int col = 0; col < logTableModel.getColumnCount(); col++) {
                             Object value = logTableModel.getValueAt(row, col);
-                            sb.append(value != null ? value.toString() : "");
+                            String valueStr = value != null ? value.toString() : "";
+                            
+                            // Escape commas in CSV
+                            if (valueStr.contains(",") || valueStr.contains("\"") || valueStr.contains("\n")) {
+                                valueStr = "\"" + valueStr.replace("\"", "\"\"") + "\"";
+                            }
+                            
+                            sb.append(valueStr);
                             if (col < logTableModel.getColumnCount() - 1) {
                                 sb.append(",");
                             }

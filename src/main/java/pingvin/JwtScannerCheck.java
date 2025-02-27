@@ -126,13 +126,6 @@ public class JwtScannerCheck implements IScannerCheck {
             case "AuthorizationBearerHeader":
                 return "Authorization Header";
             case "Cookie":
-                // Include the cookie name if available
-                if (tokenPosition instanceof pingvin.tokenposition.Cookie) {
-                    String cookieName = ((pingvin.tokenposition.Cookie) tokenPosition).getCookieName();
-                    if (cookieName != null && !cookieName.isEmpty()) {
-                        return "Cookie: " + cookieName;
-                    }
-                }
                 return "Cookie";
             case "PostBody":
                 return "POST Body";
