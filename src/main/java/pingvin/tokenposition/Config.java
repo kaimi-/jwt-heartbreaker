@@ -116,4 +116,34 @@ public class Config {
             Output.outputError("Error writing config file '" + configPath + "' - message:" + e.getMessage() + " - cause:" + e.getCause().toString());
         }
     }
+
+    public static void updateJwtKeywords(List<String> jwtKeywords) {
+        JsonArray jwtKeywordsJA = new JsonArray();
+        for (String keyword : jwtKeywords) {
+            jwtKeywordsJA.add(keyword);
+        }
+
+        configJO.set("jwtKeywords", jwtKeywordsJA);
+
+        try {
+            Files.write(Paths.get(configPath), configJO.toString(WriterConfig.PRETTY_PRINT).getBytes());
+        } catch (IOException e) {
+            Output.outputError("Error writing config file '" + configPath + "' - message:" + e.getMessage() + " - cause:" + e.getCause().toString());
+        }
+    }
+
+    public static void updateTokenKeywords(List<String> tokenKeywords) {
+        JsonArray tokenKeywordsJA = new JsonArray();
+        for (String keyword : tokenKeywords) {
+            tokenKeywordsJA.add(keyword);
+        }
+
+        configJO.set("tokenKeywords", tokenKeywordsJA);
+
+        try {
+            Files.write(Paths.get(configPath), configJO.toString(WriterConfig.PRETTY_PRINT).getBytes());
+        } catch (IOException e) {
+            Output.outputError("Error writing config file '" + configPath + "' - message:" + e.getMessage() + " - cause:" + e.getCause().toString());
+        }
+    }
 }

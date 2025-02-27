@@ -16,12 +16,12 @@ public class BurpExtender implements IBurpExtender {
         Config.loadConfig();
         JwtKeyProvider.loadKeys();
 
-        callbacks.setExtensionName("JWT heartbreaker");
+        callbacks.setExtensionName("JWT Heartbreaker");
 
         JwtPublicSecretsTab jwtPublicSecretsTab = new JwtPublicSecretsTab(callbacks);
         callbacks.addSuiteTab(jwtPublicSecretsTab);
 
-        JwtScannerCheck jwtScannerCheck = new JwtScannerCheck(callbacks);
+        JwtScannerCheck jwtScannerCheck = new JwtScannerCheck(callbacks, jwtPublicSecretsTab);
         callbacks.registerScannerCheck(jwtScannerCheck);
     }
 }

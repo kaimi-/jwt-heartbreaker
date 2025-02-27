@@ -19,10 +19,12 @@ public class JwtScannerCheck implements IScannerCheck {
 
     private final IExtensionHelpers helpers;
     private final Set<String> checkedTokens;
+    private final JwtPublicSecretsTab jwtPublicSecretsTab;
 
-    public JwtScannerCheck(IBurpExtenderCallbacks callbacks) {
+    public JwtScannerCheck(IBurpExtenderCallbacks callbacks, JwtPublicSecretsTab jwtPublicSecretsTab) {
         this.helpers = callbacks.getHelpers();
         this.checkedTokens = ConcurrentHashMap.newKeySet();
+        this.jwtPublicSecretsTab = jwtPublicSecretsTab;
     }
 
     private String lal(String jwts) {
@@ -69,9 +71,23 @@ public class JwtScannerCheck implements IScannerCheck {
 
         String curAlgo = new CustomJWToken(tokenWithoutPrefix).getAlgorithm();
         for (String key : JwtKeyProvider.getKeys()) {
+            // Skip empty keys to prevent IllegalArgumentException
+            if (key == null || key.isEmpty()) {
+                continue;
+            }
+            
             try {
                 JWTVerifier verifier = JWT.require(AlgorithmLinker.getVerifierAlgorithm(curAlgo, key)).build();
                 verifier.verify(tokenWithoutPrefix);
+
+                // Get URL as string
+                String url = helpers.analyzeRequest(baseRequestResponse).getUrl().toString();
+                
+                // Get token field name based on token position
+                String tokenFieldName = getTokenFieldName(token);
+                
+                // Log the finding to the UI
+                jwtPublicSecretsTab.addLogEntry(url, tokenFieldName, tokenWithoutPrefix, key);
 
                 JwtTokenKeyScannerIssue jwtTokenKeyScannerIssue = new JwtTokenKeyScannerIssue()
                         .setUrl(helpers.analyzeRequest(baseRequestResponse).getUrl())
@@ -98,6 +114,33 @@ public class JwtScannerCheck implements IScannerCheck {
         }
 
         return null;
+    }
+    
+    /**
+     * Determines the token field name based on the token position
+     */
+    private String getTokenFieldName(ITokenPosition tokenPosition) {
+        String className = tokenPosition.getClass().getSimpleName();
+        
+        switch (className) {
+            case "AuthorizationBearerHeader":
+                return "Authorization Header";
+            case "Cookie":
+                // Include the cookie name if available
+                if (tokenPosition instanceof pingvin.tokenposition.Cookie) {
+                    String cookieName = ((pingvin.tokenposition.Cookie) tokenPosition).getCookieName();
+                    if (cookieName != null && !cookieName.isEmpty()) {
+                        return "Cookie: " + cookieName;
+                    }
+                }
+                return "Cookie";
+            case "PostBody":
+                return "POST Body";
+            case "Body":
+                return "Response Body";
+            default:
+                return className;
+        }
     }
 
     @Override
